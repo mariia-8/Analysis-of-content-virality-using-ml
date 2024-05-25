@@ -1,0 +1,352 @@
+---
+title: "Virality of online content"
+author: "Group 3"
+date: "2023-05-01"
+output: pdf_document
+---
+
+## Loading the data
+```{r}
+news = read.csv("~/Desktop/CIS9660/OnlineNewsPopularity.csv")
+```
+
+```{r}
+library(dplyr)
+library(stargazer)
+news = news %>%
+  select('shares', 'global_rate_positive_words',
+           'global_rate_negative_words','avg_positive_polarity',
+           'avg_negative_polarity','n_tokens_title',
+           'n_tokens_content', 'n_unique_tokens', 'num_imgs',
+           'num_videos','is_weekend','data_channel_is_lifestyle',
+           'data_channel_is_entertainment','data_channel_is_bus',
+           'data_channel_is_socmed',
+           'data_channel_is_tech', 'data_channel_is_world')
+```
+
+## Changing data types
+```{r}
+names <- c( 'is_weekend','data_channel_is_lifestyle',
+            'data_channel_is_entertainment','data_channel_is_bus',
+            'data_channel_is_socmed',
+            'data_channel_is_tech', 'data_channel_is_world')
+news[,names] <- lapply(news[,names] , factor)
+```
+
+```{r}
+nrow(news)
+```
+
+## summary statistics
+```{r}
+summary(news)
+```
+
+## Plot missing values in each column and data types
+```{r}
+library(visdat)
+vis_dat(news)
+```
+
+
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+news.cor = cor(news[,1:9])
+corrplot(news.cor, method="circle")
+```
+
+## Distribution of variables
+```{r}
+par(mfrow=c(3,3))
+boxplot(news[,'shares'], main = c("Boxplot of Shares"), col = 'blue')
+boxplot(news[,'global_rate_positive_words'], main = c("Boxplot of Rate of positive words"), col = 'blue')
+boxplot(news[,'global_rate_negative_words'], main = paste("Boxplot of Rate of negative words"), col = 'blue')
+boxplot(news[,'avg_positive_polarity'], main = paste("Boxplot of Average positive Polarity"), col='blue')
+boxplot(news[,'avg_negative_polarity'], main = paste("Boxplot of Average negative Polarity"), col='blue')
+```
+
+```{r}
+par(mfrow=c(3,3))
+boxplot(news[,'n_tokens_title'], main = paste("Boxplot of Number of words in the title"), col='blue')
+boxplot(news[,'n_tokens_content'], main = paste("Boxplot of Number of words in the content"), col='blue')
+boxplot(news[,'n_unique_tokens'], main = paste("Boxplot of Number of unique words in the content"), col='blue')
+boxplot(news[,'num_imgs'], main = paste("Boxplot of Number of images in the content"), col='blue')
+boxplot(news[,'num_videos'], main = paste("Boxplot of Number of videos in the content"), col='blue')
+```
+
+## Make the histogram
+```{r}
+library(ggplot2)
+news %>%
+  ggplot( aes(x=shares)) +
+  geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8) +
+  ggtitle("Distribution of shares")
+```
+ 
+## Dependent variable is highly skewed we will take log()
+```{r}
+news_logged = news %>%
+  mutate(logged_shares = log(shares))
+```
+
+
+```{r}
+library(ggplot2)
+news_logged %>%
+  ggplot( aes(x=logged_shares)) +
+  geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8) +
+  ggtitle("Distribution of shares")
+```
+
+## Creating new data set
+```{r}
+news_logged <- news_logged %>%
+    select('logged_shares', 'global_rate_positive_words',
+           'global_rate_negative_words','avg_positive_polarity',
+           'avg_negative_polarity','n_tokens_title', 'n_unique_tokens',
+           'n_tokens_content','num_imgs',
+           'num_videos','is_weekend','data_channel_is_lifestyle',
+           'data_channel_is_entertainment','data_channel_is_bus',
+           'data_channel_is_socmed',
+           'data_channel_is_tech', 'data_channel_is_world')
+summary(news_logged)
+```
+
+```{r}
+nrow(news_logged)
+sum(is.na(news_logged))
+```
+
+
+## Plot the relationship between priary predictors and log(shares)
+```{r}
+rate_positive_wrds <- news_logged %>%
+  ggplot(aes(x=global_rate_positive_words, y=logged_shares)) +
+  geom_point() + geom_smooth(method = 'lm')
+rate_negative_wrds <- news_logged %>%
+  ggplot(aes(x=global_rate_negative_words, y=logged_shares)) +
+  geom_point() + geom_smooth(method = 'lm')
+avg_positive_polarity <- news_logged %>%
+  ggplot(aes(x=avg_positive_polarity, y=logged_shares)) +
+  geom_point() + geom_smooth(method = 'lm')
+avg_negative_polarity <- news_logged %>%
+  ggplot(aes(x=avg_negative_polarity, y=logged_shares)) +
+  geom_point() + geom_smooth(method = 'lm')
+```
+
+```{r}
+library(cowplot)
+plot_grid(rate_positive_wrds, rate_negative_wrds,avg_positive_polarity,
+          avg_negative_polarity, labels=c("A", "B", "C","D"), col= 2, nrow = 2)
+```
+
+## Multi-linear regression 
+```{r}
+lm.model <- lm(logged_shares ~ ., data = news_logged)
+summary(lm.model)
+```
+
+## Diagnostic Plots
+```{r}
+par(mfrow =c(2,2))
+plot(lm.model)
+```
+
+
+## Removing influential point and re-running the regression
+```{r}
+news_logged <- news_logged[-31038,]
+```
+
+```{r}
+lm.model <- lm(logged_shares ~ ., data = news_logged)
+summary(lm.model)
+```
+
+## Checking the diagnostic plots
+```{r}
+par(mfrow =c(2,2))
+plot(lm.model)
+```
+
+
+## VIF Score to check collinearity
+```{r}
+library(car)
+vif_values <- vif(lm.model)
+barplot(vif_values, main = "VIF Values", horiz = TRUE, col = "steelblue")
+abline(v = 5, lwd = 3, lty = 2)
+```
+
+# Classification
+## Creating a factor whether an article is popular or not
+```{r}
+popular=as.factor(ifelse(news_logged$logged_shares<=7.3,'No','Yes')) # 7.244 is the median log of shares
+news_logged_class=data.frame(news_logged,popular)
+news_logged_class =  news_logged_class %>% 
+  select(-logged_shares)
+summary(news_logged_class) 
+```
+
+## Create functions to calculate precision, recall and accuracy rate
+```{r}
+recall = function(cm) {
+return(cm[2,2]/(cm[2,2]+cm[1,2]))
+}
+accuracy = function(cm) {
+return((cm[1,1]+cm[2,2])/(cm[1,1]+cm[1,2]+cm[2,1]+cm[2,2]))
+}
+precision = function(cm) {
+return((cm[2,2])/(cm[2,2]+cm[2,1]))
+}
+```
+
+## Single classification Tree
+```{r}
+set.seed(2)
+news.train = sample(1:nrow(news_logged_class), nrow(news_logged_class)/2)
+news.test = news_logged_class[-news.train,]
+popular.test = news_logged_class$popular[-news.train]
+```
+
+```{r}
+library(tree)
+tree.news=tree(popular~.,news_logged_class, subset=news.train)
+summary(tree.news)
+```
+
+```{r}
+plot(tree.news)
+text(tree.news,pretty=0)
+```
+
+## tree prediction
+```{r}
+tree.pred=predict(tree.news,news.test,type="class")
+```
+
+## create a confusion matrix
+```{r}
+single.tree.cm = table(tree.pred, popular.test)
+single.tree.cm
+```
+
+## accuracy rate
+```{r}
+accuracy.rate1 = mean(tree.pred==popular.test)
+accuracy.rate1
+```
+
+## precision rate
+```{r}
+pr.rate1 = precision(single.tree.cm)
+pr.rate1
+```
+
+## recall rate
+```{r}
+recall.rate1 = recall(single.tree.cm)
+```
+
+## Logistic regression
+```{r}
+set.seed(5)
+glm.fits=glm(popular~.,data=news_logged_class,family=binomial, subset=news.train)
+```
+
+```{r}
+summary(glm.fits)
+```
+
+```{r}
+glm.probs=predict(glm.fits,news.test,type="response")
+```
+
+```{r}
+length(glm.probs)
+```
+
+```{r}
+glm.pred=rep('No',19822)
+```
+
+```{r}
+glm.pred[glm.probs>.5]="Yes"
+```
+
+## confusion matrix
+```{r}
+logistic.reg.cm = table(glm.pred,popular.test)
+logistic.reg.cm
+```
+
+## accuracy rate
+```{r}
+accuracy.rate2 = mean(glm.pred==popular.test)
+accuracy.rate2
+```
+
+## precision rate
+```{r}
+pr.rate2 = precision(logistic.reg.cm)
+pr.rate2
+```
+
+## recall rate
+```{r}
+recall.rate2 = recall(logistic.reg.cm)
+recall.rate2
+```
+
+## Random Forest
+```{r}
+library(randomForest)
+set.seed(1)
+rf.news_class=randomForest(popular~.,data=news_logged_class,subset=news.train,mtry=sqrt(16),importance=TRUE)
+yhat.rf = predict(rf.news_class,newdata=news.test)
+```
+
+```{r}
+rf.news_class
+```
+
+## confusion matrix
+```{r}
+rf.cm = table(yhat.rf,popular.test)
+rf.cm
+```
+## accuracy rate
+```{r}
+accuracy.rate3 = mean(yhat.rf==popular.test)
+accuracy.rate3
+```
+
+## precision rate
+```{r}
+pr.rate3 = precision(rf.cm)
+pr.rate3
+```
+
+## recall rate
+```{r}
+recall.rate3 = recall(rf.cm)
+recall.rate3
+```
+
+```{r}
+importance(rf.news_class)
+varImpPlot(rf.news_class)
+```
+## comparing accuracy, recall and precision of all models
+```{r}
+(comparing_metrics = data.frame(Models = c('Single Tree','Logistic Regression','Random Forest'), 
+                                Accuracy = c(accuracy.rate1, accuracy.rate2, accuracy.rate3),
+                                Precision = c(pr.rate1, pr.rate2, pr.rate3),
+                                Recall = c(recall.rate1,recall.rate2, recall.rate3)))
+```
+
+
+
+
+
